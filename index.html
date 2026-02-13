@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HTN/DM Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root{--bg:#f6f8fb;--card:#fff;--text:#0f172a;--muted:#475569;--border:#e2e8f0;--shadow:0 10px 24px rgba(15,23,42,.08);--radius:16px;}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);
+      background: radial-gradient(1200px 600px at 20% -10%, rgba(29,78,216,.14), transparent 60%),
+                  radial-gradient(1000px 560px at 80% 0%, rgba(8,145,178,.12), transparent 55%),
+                  linear-gradient(180deg,#fdfcff 0%, var(--bg) 42%, var(--bg) 100%);}
+    .wrap{max-width:1200px;margin:0 auto;padding:24px 18px 64px;}
+    header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px;}
+    h1{margin:0;font-size:22px;letter-spacing:-.2px;}
+    .subtitle{color:var(--muted);font-size:13px;line-height:1.4;}
+    .pillrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+    .pill{background:rgba(29,78,216,.10);border:1px solid rgba(29,78,216,.18);color:#1e40af;padding:6px 10px;border-radius:999px;font-size:12px;white-space:nowrap;}
+    select{border:1px solid var(--border);border-radius:12px;padding:7px 10px;background:#fff;font-size:12px;box-shadow:0 6px 14px rgba(2,6,23,.06);}
+    .tabs{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 14px;}
+    .tabbtn{border:1px solid rgba(148,163,184,.55);background:rgba(255,255,255,.85);color:var(--muted);padding:8px 12px;border-radius:999px;font-size:12px;cursor:pointer;transition:all .15s ease;box-shadow:0 8px 18px rgba(2,6,23,.05);}
+    .tabbtn.active{color:#0b1220;background:linear-gradient(90deg, rgba(29,78,216,.18), rgba(8,145,178,.12));border-color:rgba(29,78,216,.40);box-shadow:0 12px 24px rgba(29,78,216,.10);}
+    .tabpanel{display:none;}
+    .tabpanel.active{display:block;}
+    .grid{display:grid;gap:14px;}
+    .kpis{grid-template-columns:repeat(12,1fr);}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;}
+    .kpi{grid-column:span 3;display:grid;gap:8px;min-height:92px;position:relative;overflow:hidden;}
+    .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;opacity:.95;}
+    .kpi-blue{background:linear-gradient(180deg, rgba(29,78,216,.10), #fff 55%);} .kpi-blue::before{background:rgba(29,78,216,.95);}
+    .kpi-teal{background:linear-gradient(180deg, rgba(8,145,178,.10), #fff 55%);} .kpi-teal::before{background:rgba(8,145,178,.95);}
+    .kpi-amber{background:linear-gradient(180deg, rgba(245,158,11,.12), #fff 55%);} .kpi-amber::before{background:rgba(245,158,11,.95);}
+    .kpi-green{background:linear-gradient(180deg, rgba(22,163,74,.12), #fff 55%);} .kpi-green::before{background:rgba(22,163,74,.95);}
+    .kpi-red{background:linear-gradient(180deg, rgba(239,68,68,.10), #fff 55%);} .kpi-red::before{background:rgba(239,68,68,.95);}
+    .kpi-purple{background:linear-gradient(180deg, rgba(124,58,237,.10), #fff 55%);} .kpi-purple::before{background:rgba(124,58,237,.95);}
+    .kpi .label{font-size:12px;color:var(--muted);}
+    .kpi .value{font-size:26px;font-weight:760;letter-spacing:-.3px;}
+    .kpi .note{font-size:12px;color:var(--muted);}
+    .section{margin-top:14px;grid-template-columns:repeat(12,1fr);display:grid;gap:14px;}
+    .col-12{grid-column:span 12;}
+    .canvasbox{height:420px;}
+    table{width:100%;border-collapse:collapse;font-size:12px;}
+    th,td{padding:10px 8px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;}
+    th:first-child,td:first-child{text-align:left;}
+    th{color:var(--muted);font-weight:650;background:rgba(148,163,184,.10);border-bottom:1px solid var(--border);}
+    code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:rgba(148,163,184,.18);padding:2px 6px;border-radius:8px;}
+    @media(max-width:980px){.kpi{grid-column:span 6;}.canvasbox{height:360px;}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>HTN/DM Integration Dashboard</h1>
+      <div class="subtitle">Build: <b>Stable v3</b> · Generated: <span id="gen_at"></span></div>
+      <div class="subtitle">Scope: <span id="scope_txt">All sites</span></div>
+    </div>
+    <div class="pillrow">
+      <div class="pill">Raised BP: SBP≥140 or DBP≥90</div>
+      <div class="pill">Age bands: 0–9, 10–19, 20–24, 25–49, 50–59, 60+</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="subtitle">Site:</span>
+        <select id="siteSelect"></select>
+      </div>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tabbtn active" data-tab="tab_overview">Overview</button>
+    <button class="tabbtn" data-tab="tab_bp">BP Profile</button>
+    <button class="tabbtn" data-tab="tab_sites">Sites</button>
+  </div>
+
+  <div id="tab_overview" class="tabpanel active">
+    <div class="grid kpis">
+      <div class="card kpi kpi-blue"><div class="label">TX_Curr (Total Active on ART)</div><div class="value" id="k_tx">—</div><div class="note">Rows in extract (selected scope).</div></div>
+      <div class="card kpi kpi-teal"><div class="label">BP screened</div><div class="value" id="k_scr">—</div><div class="note" id="k_scr_note">—</div></div>
+      <div class="card kpi kpi-amber"><div class="label">Raised BP</div><div class="value" id="k_rbp">—</div><div class="note" id="k_rbp_note">—</div></div>
+      <div class="card kpi kpi-green"><div class="label">Same-day action</div><div class="value" id="k_sda">—</div><div class="note" id="k_sda_note">—</div></div>
+      <div class="card kpi kpi-purple"><div class="label">HTN enrolled</div><div class="value" id="k_htn_enr">—</div><div class="note" id="k_htn_enr_note">—</div></div>
+      <div class="card kpi kpi-green"><div class="label">HTN controlled</div><div class="value" id="k_htn_ctrl">—</div><div class="note" id="k_htn_ctrl_note">—</div></div>
+      <div class="card kpi kpi-red"><div class="label">Raised BP but not in problem list</div><div class="value" id="k_gap1">—</div><div class="note" id="k_gap1_note">—</div></div>
+      <div class="card kpi kpi-amber"><div class="label">With HTN but not enrolled</div><div class="value" id="k_gap2">—</div><div class="note" id="k_gap2_note">—</div></div>
+    </div>
+
+    <div class="section">
+      <div class="card col-12">
+        <h2>Indicator definitions</h2>
+        <div style="overflow:auto;">
+          <table>
+            <thead><tr><th>Indicator</th><th>Meaning</th><th>Operational definition</th><th>Failure type</th></tr></thead>
+            <tbody>
+              <tr><td><b>Raised BP</b></td><td>Elevated BP at last measurement</td><td>SBP≥140 OR DBP≥90</td><td>If high: increased burden detected and/or strong screening capture; interpret with With HTN and enrolment</td></tr>
+              <tr><td><b>Same-day action</b></td><td>Triage→consultation same day</td><td><code>triage_consultation_date_matching="Yes"</code></td><td>If low: workflow delay between triage and clinician review</td></tr>
+              <tr><td><b>With HTN</b></td><td>HTN documented in EMR</td><td><code>has_htn_problem_list="Yes"</code></td><td>If low vs Raised BP: documentation/diagnosis gap</td></tr>
+              <tr><td><b>With DM</b></td><td>DM documented in EMR</td><td><code>has_dm_problem_list="Yes"</code></td><td>If low: documentation gap</td></tr>
+              <tr><td><b>Enrolled</b></td><td>Program start proxy</td><td>Onset date present (<code>*_onset_date</code>)</td><td>If low: linkage-to-care gap</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card col-12">
+        <h2>HTN cascade (Screened → Raised BP → With HTN → Enrolled → Controlled)</h2>
+        <div class="canvasbox"><canvas id="chart_htn"></canvas></div>
+      </div>
+
+      <div class="card col-12">
+        <h2>DM cascade (With DM → Enrolled → Controlled)</h2>
+        <div class="canvasbox"><canvas id="chart_dm"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab_bp" class="tabpanel">
+    <div class="section">
+      <div class="card col-12">
+        <h2>BP categories (total, current scope)</h2>
+        <div class="canvasbox"><canvas id="chart_bp_pie"></canvas></div>
+      </div>
+
+      <div class="card col-12">
+        <h2>BP categories by age band</h2>
+        <div class="canvasbox"><canvas id="chart_bp_age"></canvas></div>
+      </div>
+
+      <div class="card col-12">
+        <h2>BP categories by sex (Female vs Male)</h2>
+        <div class="canvasbox"><canvas id="chart_bp_sex"></canvas></div>
+      </div>
+
+      <div class="card col-12">
+        <h2>BP categories by age band (table)</h2>
+        <div style="overflow:auto;">
+          <table id="tbl_bp_by_age">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab_sites" class="tabpanel">
+    <div class="section">
+      <div class="card col-12">
+        <h2>Facility HTN & DM Table (All sites)</h2>
+        <div style="overflow:auto;">
+          <table id="tbl_league">
+            <thead>
+              <tr>
+                <th>Site</th>
+                <th>TX_Curr</th>
+                <th>BP screened %</th>
+                <th>Raised BP % (of screened)</th>
+                <th>HTN enrolled %</th>
+                <th>HTN controlled %</th>
+                <th>DM enrolled %</th>
+                <th>DM controlled %</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const DATA = {"overall":{"tx_curr":25224,"bp_screened":{"n":25068,"d":25224,"p":0.9938154138915318},"raised_bp":{"n":4382,"d":25068,"p":0.17480453167384713},"same_day_action":{"n":17693,"d":25224,"p":0.7014351411354266},"missing_phone":{"n":248,"d":25224,"p":0.009831906121154456},"htn_cascade":{"screened":{"n":25068,"d":25224,"p":0.9938154138915318},"raised":{"n":4382,"d":25068,"p":0.17480453167384713},"with_htn":{"n":1308,"d":4382,"p":0.29849383842994065},"enrolled":{"n":884,"d":2121,"p":0.41678453559641676},"controlled":{"n":339,"d":884,"p":0.3834841628959276}},"dm_cascade":{"with_dm":{"n":356,"d":25224,"p":0.014113542657786235},"enrolled":{"n":159,"d":356,"p":0.44662921348314605},"controlled":{"n":95,"d":159,"p":0.5974842767295597}},"htn_gaps":{"raised_not_in_problem":{"n":3074,"d":4382,"p":0.7015061615700593},"with_htn_not_enrolled":{"n":1237,"d":2121,"p":0.5832154644035832}},"bp_counts_total":{"Normal":10031,"Pre-Hypertension":10655,"Hypertension":3976,"Severe Hypertension":406},"bp_by_age":{"labels":["0-9","10-19","20-24","25-49","50-59","60+"],"series":{"Normal":[78,690,527,5886,1983,867],"Pre-Hypertension":[9,148,244,6067,2797,1390],"Hypertension":[0,21,34,1709,1349,863],"Severe Hypertension":[0,3,3,149,151,100]}},"bp_by_sex":{"labels":["F","M","U"],"series":{"Normal":[7077,2954,0],"Pre-Hypertension":[7039,3616,0],"Hypertension":[2622,1354,0],"Severe Hypertension":[254,152,0]}}},"by_site":{"Bombolulu HTN DM Clients 13062026":{"tx_curr":1514,"bp_screened":{"n":1502,"d":1514,"p":0.9920739762219286},"raised_bp":{"n":294,"d":1502,"p":0.19573901464713714},"same_day_action":{"n":1110,"d":1514,"p":0.7331571994715984},"missing_phone":{"n":50,"d":1514,"p":0.03302509907529723},"htn_cascade":{"screened":{"n":1502,"d":1514,"p":0.9920739762219286},"raised":{"n":294,"d":1502,"p":0.19573901464713714},"with_htn":{"n":56,"d":294,"p":0.19047619047619047},"enrolled":{"n":42,"d":76,"p":0.5526315789473685},"controlled":{"n":7,"d":42,"p":0.16666666666666666}},"dm_cascade":{"with_dm":{"n":16,"d":1514,"p":0.010568031704095112},"enrolled":{"n":4,"d":16,"p":0.25},"controlled":{"n":3,"d":4,"p":0.75}},"htn_gaps":{"raised_not_in_problem":{"n":238,"d":294,"p":0.8095238095238095},"with_htn_not_enrolled":{"n":34,"d":76,"p":0.4473684210526316}},"bp_counts_total":{"Normal":615,"Pre-Hypertension":593,"Hypertension":273,"Severe Hypertension":21},"bp_by_age":{"labels":["0-9","10-19","20-24","25-49","50-59","60+"],"series":{"Normal":[6,56,41,398,85,29],"Pre-Hypertension":[0,6,21,398,121,47],"Hypertension":[0,2,1,134,80,56],"Severe Hypertension":[0,0,0,10,5,6]}},"bp_by_sex":{"labels":["F","M","U"],"series":{"Normal":[469,146,0],"Pre-Hypertension":[411,182,0],"Hypertension":[196,77,0],"Severe Hypertension":[11,10,0]}}},"Bomu Alwalidayn HTN DM 13022026":{"tx_curr":1261,"bp_screened":{"n":1236,"d":1261,"p":0.9801744647105471},"raised_bp":{"n":296,"d":1236,"p":0.23948220064724918},"same_day_action":{"n":603,"d":1261,"p":0.4781919111816019},"missing_phone":{"n":69,"d":1261,"p":0.05471847739888977},"htn_cascade":{"screened":{"n":1236,"d":1261,"p":0.9801744647105471},"raised":{"n":296,"d":1236,"p":0.23948220064724918},"with_htn":{"n":102,"d":296,"p":0.34459459459459457},"enrolled":{"n":0,"d":142,"p":0.0},"controlled":{"n":0,"d":0,"p":0.0}},"dm_cascade":{"with_dm":{"n":8,"d":1261,"p":0.006344171292624901},"enrolled":{"n":0,"d":8,"p":0.0},"controlled":{"n":0,"d":0,"p":0.0}},"htn_gaps":{"raised_not_in_problem":{"n":194,"d":296,"p":0.6554054054054054},"with_htn_not_enrolled":{"n":142,"d":142,"p":1.0}},"bp_counts_total":{"Normal":574,"Pre-Hypertension":366,"Hypertension":256,"Severe Hypertension":40},"bp_by_age":{"labels":["0-9","10-19","20-24","25-49","50-59","60+"],"series":{"Normal":[10,58,32,350,87,37],"Pre-Hypertension":[0,7,6,230,90,33],"Hypertension":[0,4,2,121,76,53],"Severe Hypertension":[0,1,0,16,11,12]}},"bp_by_sex":{"labels":["F","M","U"],"series":{"Normal":[399,175,0],"Pre-Hypertension":[265,101,0],"Hypertension":[188,68,0],"Severe Hypertension":[34,6,0]}}},"Bomu Changamwe HTN DM Clients 13022026":{"tx_curr":11904,"bp_screened":{"n":11862,"d":11904,"p":0.9964717741935484},"raised_bp":{"n":1846,"d":11862,"p":0.1556229978081268},"same_day_action":{"n":7593,"d":11904,"p":0.6378528225806451},"missing_phone":{"n":34,"d":11904,"p":0.002856182795698925},"htn_cascade":{"screened":{"n":11862,"d":11904,"p":0.9964717741935484},"raised":{"n":1846,"d":11862,"p":0.1556229978081268},"with_htn":{"n":506,"d":1846,"p":0.27410617551462624},"enrolled":{"n":637,"d":894,"p":0.7125279642058165},"controlled":{"n":273,"d":637,"p":0.42857142857142855}},"dm_cascade":{"with_dm":{"n":185,"d":11904,"p":0.015540994623655914},"enrolled":{"n":133,"d":185,"p":0.7189189189189189},"controlled":{"n":82,"d":133,"p":0.6165413533834586}},"htn_gaps":{"raised_not_in_problem":{"n":1340,"d":1846,"p":0.7258938244853738},"with_htn_not_enrolled":{"n":257,"d":894,"p":0.28747203579418346}},"bp_counts_total":{"Normal":4641,"Pre-Hypertension":5375,"Hypertension":1681,"Severe Hypertension":165},"bp_by_age":{"labels":["0-9","10-19","20-24","25-49","50-59","60+"],"series":{"Normal":[10,181,180,2833,1012,425],"Pre-Hypertension":[2,26,72,3087,1493,695],"Hypertension":[0,0,11,790,580,300],"Severe Hypertension":[0,0,1,68,70,26]}},"bp_by_sex":{"labels":["F","M","U"],"series":{"Normal":[3133,1508,0],"Pre-Hypertension":[3396,1979,0],"Hypertension":[1021,660,0],"Severe Hypertension":[91,74,0]}}},"Bomu Likoni HTN DM Clients 13022026":{"tx_curr":4437,"bp_screened":{"n":4388,"d":4437,"p":0.9889565021410863},"raised_bp":{"n":827,"d":4388,"p":0.18846855059252507},"same_day_action":{"n":3542,"d":4437,"p":0.7982871309443318},"missing_phone":{"n":13,"d":4437,"p":0.002929907595221997},"htn_cascade":{"screened":{"n":4388,"d":4437,"p":0.9889565021410863},"raised":{"n":827,"d":4388,"p":0.18846855059252507},"with_htn":{"n":394,"d":827,"p":0.47642079806529625},"enrolled":{"n":63,"d":613,"p":0.10277324632952692},"controlled":{"n":16,"d":63,"p":0.25396825396825395}},"dm_cascade":{"with_dm":{"n":89,"d":4437,"p":0.02005859815190444},"enrolled":{"n":6,"d":89,"p":0.06741573033707865},"controlled":{"n":2,"d":6,"p":0.3333333333333333}},"htn_gaps":{"raised_not_in_problem":{"n":433,"d":827,"p":0.5235792019347038},"with_htn_not_enrolled":{"n":550,"d":613,"p":0.8972267536704731}},"bp_counts_total":{"Normal":1819,"Pre-Hypertension":1742,"Hypertension":762,"Severe Hypertension":65},"bp_by_age":{"labels":["0-9","10-19","20-24","25-49","50-59","60+"],"series":{"Normal":[12,142,138,1065,350,112],"Pre-Hypertension":[1,36,47,987,498,173],"Hypertension":[0,3,4,293,279,183],"Severe Hypertension":[0,0,0,21,21,23]}},"bp_by_sex":{"labels":["F","M","U"],"series":{"Normal":[1276,543,0],"Pre-Hypertension":[1192,550,0],"Hypertension":[518,244,0],"Severe Hypertension":[49,16,0]}}},"Bomu Mariakani HTN DN Clients 13022026":{"tx_curr":2357,"bp_screened":{"n":2354,"d":2357,"p":0.9987271955876114},"raised_bp":{"n":410,"d":2354,"p":0.17417162276975362},"same_day_action":{"n":2061,"d":2357,"p":0.8744166313109886},"missing_phone":{"n":20,"d":2357,"p":0.00848536274925753},"htn_cascade":{"screened":{"n":2354,"d":2357,"p":0.9987271955876114},"raised":{"n":410,"d":2354,"p":0.17417162276975362},"with_htn":{"n":78,"d":410,"p":0.1902439024390244},"enrolled":{"n":98,"d":113,"p":0.8672566371681416},"controlled":{"n":25,"d":98,"p":0.25510204081632654}},"dm_cascade":{"with_dm":{"n":8,"d":2357,"p":0.0033941450997030122},"enrolled":{"n":7,"d":8,"p":0.875},"controlled":{"n":4,"d":7,"p":0.5714285714285714}},"htn_gaps":{"raised_not_in_problem":{"n":332,"d":410,"p":0.8097560975609757},"with_htn_not_enrolled":{"n":15,"d":113,"p":0.13274336283185842}},"bp_counts_total":{"Normal":942,"Pre-Hypertension":1002,"Hypertension":372,"Severe Hypertension":38},"bp_by_age":{"labels":["0-9","10-19","20-24","25-49","50-59","60+"],"series":{"Normal":[14,113,53,502,172,88],"Pre-Hypertension":[1,33,30,563,216,159],"Hypertension":[0,7,6,138,119,102],"Severe Hypertension":[0,0,1,12,13,12]}},"bp_by_sex":{"labels":["F","M","U"],"series":{"Normal":[704,238,0],"Pre-Hypertension":[715,287,0],"Hypertension":[251,121,0],"Severe Hypertension":[19,19,0]}}},"Bomu OldTown HTN DM 13022026":{"tx_curr":215,"bp_screened":{"n":213,"d":215,"p":0.9906976744186047},"raised_bp":{"n":43,"d":213,"p":0.20187793427230047},"same_day_action":{"n":145,"d":215,"p":0.6744186046511628},"missing_phone":{"n":0,"d":215,"p":0.0},"htn_cascade":{"screened":{"n":213,"d":215,"p":0.9906976744186047},"raised":{"n":43,"d":213,"p":0.20187793427230047},"with_htn":{"n":16,"d":43,"p":0.37209302325581395},"enrolled":{"n":14,"d":24,"p":0.5833333333333334},"controlled":{"n":8,"d":14,"p":0.5714285714285714}},"dm_cascade":{"with_dm":{"n":6,"d":215,"p":0.027906976744186046},"enrolled":{"n":3,"d":6,"p":0.5},"controlled":{"n":2,"d":3,"p":0.6666666666666666}},"htn_gaps":{"raised_not_in_problem":{"n":27,"d":43,"p":0.627906976744186},"with_htn_not_enrolled":{"n":10,"d":24,"p":0.4166666666666667}},"bp_counts_total":{"Normal":84,"Pre-Hypertension":86,"Hypertension":42,"Severe Hypertension":1},"bp_by_age":{"labels":["0-9","10-19","20-24","25-49","50-59","60+"],"series":{"Normal":[1,6,3,53,17,4],"Pre-Hypertension":[0,1,5,46,19,15],"Hypertension":[0,0,1,18,17,6],"Severe Hypertension":[0,0,0,0,1,0]}},"bp_by_sex":{"labels":["F","M","U"],"series":{"Normal":[64,20,0],"Pre-Hypertension":[46,40,0],"Hypertension":[29,13,0],"Severe Hypertension":[1,0,0]}}},"Bomu Timboni HTN DM Clients 13022026":{"tx_curr":826,"bp_screened":{"n":810,"d":826,"p":0.9806295399515739},"raised_bp":{"n":144,"d":810,"p":0.17777777777777778},"same_day_action":{"n":596,"d":826,"p":0.7215496368038741},"missing_phone":{"n":0,"d":826,"p":0.0},"htn_cascade":{"screened":{"n":810,"d":826,"p":0.9806295399515739},"raised":{"n":144,"d":810,"p":0.17777777777777778},"with_htn":{"n":13,"d":144,"p":0.09027777777777778},"enrolled":{"n":11,"d":23,"p":0.4782608695652174},"controlled":{"n":0,"d":11,"p":0.0}},"dm_cascade":{"with_dm":{"n":6,"d":826,"p":0.007263922518159807},"enrolled":{"n":4,"d":6,"p":0.6666666666666666},"controlled":{"n":1,"d":4,"p":0.25}},"htn_gaps":{"raised_not_in_problem":{"n":131,"d":144,"p":0.9097222222222222},"with_htn_not_enrolled":{"n":12,"d":23,"p":0.5217391304347826}},"bp_counts_total":{"Normal":169,"Pre-Hypertension":497,"Hypertension":120,"Severe Hypertension":24},"bp_by_age":{"labels":["0-9","10-19","20-24","25-49","50-59","60+"],"series":{"Normal":[5,36,13,78,26,11],"Pre-Hypertension":[0,11,19,277,120,70],"Hypertension":[0,0,2,60,40,18],"Severe Hypertension":[0,0,0,5,11,8]}},"bp_by_sex":{"labels":["F","M","U"],"series":{"Normal":[121,48,0],"Pre-Hypertension":[348,149,0],"Hypertension":[98,22,0],"Severe Hypertension":[14,10,0]}}},"SJSH Bura HTN DM 13022026":{"tx_curr":218,"bp_screened":{"n":217,"d":218,"p":0.9954128440366973},"raised_bp":{"n":47,"d":217,"p":0.21658986175115208},"same_day_action":{"n":166,"d":218,"p":0.7614678899082569},"missing_phone":{"n":3,"d":218,"p":0.013761467889908258},"htn_cascade":{"screened":{"n":217,"d":218,"p":0.9954128440366973},"raised":{"n":47,"d":217,"p":0.21658986175115208},"with_htn":{"n":18,"d":47,"p":0.3829787234042553},"enrolled":{"n":0,"d":30,"p":0.0},"controlled":{"n":0,"d":0,"p":0.0}},"dm_cascade":{"with_dm":{"n":2,"d":218,"p":0.009174311926605505},"enrolled":{"n":0,"d":2,"p":0.0},"controlled":{"n":0,"d":0,"p":0.0}},"htn_gaps":{"raised_not_in_problem":{"n":29,"d":47,"p":0.6170212765957447},"with_htn_not_enrolled":{"n":30,"d":30,"p":1.0}},"bp_counts_total":{"Normal":80,"Pre-Hypertension":90,"Hypertension":44,"Severe Hypertension":3},"bp_by_age":{"labels":["0-9","10-19","20-24","25-49","50-59","60+"],"series":{"Normal":[0,3,4,33,24,16],"Pre-Hypertension":[0,3,3,39,19,26],"Hypertension":[0,1,0,11,17,15],"Severe Hypertension":[0,0,0,0,1,2]}},"bp_by_sex":{"labels":["F","M","U"],"series":{"Normal":[52,28,0],"Pre-Hypertension":[66,24,0],"Hypertension":[25,19,0],"Severe Hypertension":[2,1,0]}}},"SJSH Maungu HTN DM 13022026":{"tx_curr":328,"bp_screened":{"n":328,"d":328,"p":1.0},"raised_bp":{"n":46,"d":328,"p":0.1402439024390244},"same_day_action":{"n":120,"d":328,"p":0.36585365853658536},"missing_phone":{"n":4,"d":328,"p":0.012195121951219513},"htn_cascade":{"screened":{"n":328,"d":328,"p":1.0},"raised":{"n":46,"d":328,"p":0.1402439024390244},"with_htn":{"n":6,"d":46,"p":0.13043478260869565},"enrolled":{"n":0,"d":12,"p":0.0},"controlled":{"n":0,"d":0,"p":0.0}},"dm_cascade":{"with_dm":{"n":3,"d":328,"p":0.009146341463414634},"enrolled":{"n":0,"d":3,"p":0.0},"controlled":{"n":0,"d":0,"p":0.0}},"htn_gaps":{"raised_not_in_problem":{"n":40,"d":46,"p":0.8695652173913043},"with_htn_not_enrolled":{"n":12,"d":12,"p":1.0}},"bp_counts_total":{"Normal":136,"Pre-Hypertension":146,"Hypertension":44,"Severe Hypertension":2},"bp_by_age":{"labels":["0-9","10-19","20-24","25-49","50-59","60+"],"series":{"Normal":[0,8,7,90,16,15],"Pre-Hypertension":[1,7,8,88,34,8],"Hypertension":[0,0,0,16,17,11],"Severe Hypertension":[0,0,0,1,1,0]}},"bp_by_sex":{"labels":["F","M","U"],"series":{"Normal":[111,25,0],"Pre-Hypertension":[98,48,0],"Hypertension":[35,9,0],"Severe Hypertension":[2,0,0]}}},"SJSH Shelter HTN DM 13022026":{"tx_curr":627,"bp_screened":{"n":622,"d":627,"p":0.9920255183413078},"raised_bp":{"n":164,"d":622,"p":0.26366559485530544},"same_day_action":{"n":375,"d":627,"p":0.5980861244019139},"missing_phone":{"n":3,"d":627,"p":0.004784688995215311},"htn_cascade":{"screened":{"n":622,"d":627,"p":0.9920255183413078},"raised":{"n":164,"d":622,"p":0.26366559485530544},"with_htn":{"n":63,"d":164,"p":0.38414634146341464},"enrolled":{"n":0,"d":100,"p":0.0},"controlled":{"n":0,"d":0,"p":0.0}},"dm_cascade":{"with_dm":{"n":20,"d":627,"p":0.03189792663476874},"enrolled":{"n":0,"d":20,"p":0.0},"controlled":{"n":0,"d":0,"p":0.0}},"htn_gaps":{"raised_not_in_problem":{"n":101,"d":164,"p":0.6158536585365854},"with_htn_not_enrolled":{"n":100,"d":100,"p":1.0}},"bp_counts_total":{"Normal":259,"Pre-Hypertension":199,"Hypertension":147,"Severe Hypertension":17},"bp_by_age":{"labels":["0-9","10-19","20-24","25-49","50-59","60+"],"series":{"Normal":[2,16,17,155,42,27],"Pre-Hypertension":[0,5,6,101,57,30],"Hypertension":[0,1,2,47,56,41],"Severe Hypertension":[0,1,0,7,6,3]}},"bp_by_sex":{"labels":["F","M","U"],"series":{"Normal":[203,56,0],"Pre-Hypertension":[119,80,0],"Hypertension":[90,57,0],"Severe Hypertension":[12,5,0]}}},"St.Lukes HTN DM 13022026":{"tx_curr":1537,"bp_screened":{"n":1536,"d":1537,"p":0.9993493819128172},"raised_bp":{"n":265,"d":1536,"p":0.17252604166666666},"same_day_action":{"n":1382,"d":1537,"p":0.8991541964866623},"missing_phone":{"n":52,"d":1537,"p":0.03383214053350683},"htn_cascade":{"screened":{"n":1536,"d":1537,"p":0.9993493819128172},"raised":{"n":265,"d":1536,"p":0.17252604166666666},"with_htn":{"n":56,"d":265,"p":0.21132075471698114},"enrolled":{"n":19,"d":94,"p":0.20212765957446807},"controlled":{"n":10,"d":19,"p":0.5263157894736842}},"dm_cascade":{"with_dm":{"n":13,"d":1537,"p":0.008458035133376708},"enrolled":{"n":2,"d":13,"p":0.15384615384615385},"controlled":{"n":1,"d":2,"p":0.5}},"htn_gaps":{"raised_not_in_problem":{"n":209,"d":265,"p":0.7886792452830189},"with_htn_not_enrolled":{"n":75,"d":94,"p":0.7978723404255319}},"bp_counts_total":{"Normal":712,"Pre-Hypertension":559,"Hypertension":235,"Severe Hypertension":30},"bp_by_age":{"labels":["0-9","10-19","20-24","25-49","50-59","60+"],"series":{"Normal":[18,71,39,329,152,103],"Pre-Hypertension":[4,13,27,251,130,134],"Hypertension":[0,3,5,81,68,78],"Severe Hypertension":[0,1,1,9,11,8]}},"bp_by_sex":{"labels":["F","M","U"],"series":{"Normal":[545,167,0],"Pre-Hypertension":[383,176,0],"Hypertension":[171,64,0],"Severe Hypertension":[19,11,0]}}}},"league":[{"site":"Bomu OldTown HTN DM 13022026","tx_curr":215,"bp_screened_p":0.9906976744186047,"raised_bp_p":0.20187793427230047,"htn_enrolled_p":0.5833333333333334,"htn_control_p":0.5714285714285714,"dm_enrolled_p":0.5,"dm_control_p":0.6666666666666666},{"site":"St.Lukes HTN DM 13022026","tx_curr":1537,"bp_screened_p":0.9993493819128172,"raised_bp_p":0.17252604166666666,"htn_enrolled_p":0.20212765957446807,"htn_control_p":0.5263157894736842,"dm_enrolled_p":0.15384615384615385,"dm_control_p":0.5},{"site":"Bomu Changamwe HTN DM Clients 13022026","tx_curr":11904,"bp_screened_p":0.9964717741935484,"raised_bp_p":0.1556229978081268,"htn_enrolled_p":0.7125279642058165,"htn_control_p":0.42857142857142855,"dm_enrolled_p":0.7189189189189189,"dm_control_p":0.6165413533834586},{"site":"Bomu Mariakani HTN DN Clients 13022026","tx_curr":2357,"bp_screened_p":0.9987271955876114,"raised_bp_p":0.17417162276975362,"htn_enrolled_p":0.8672566371681416,"htn_control_p":0.25510204081632654,"dm_enrolled_p":0.875,"dm_control_p":0.5714285714285714},{"site":"Bomu Likoni HTN DM Clients 13022026","tx_curr":4437,"bp_screened_p":0.9889565021410863,"raised_bp_p":0.18846855059252507,"htn_enrolled_p":0.10277324632952692,"htn_control_p":0.25396825396825395,"dm_enrolled_p":0.06741573033707865,"dm_control_p":0.3333333333333333},{"site":"Bombolulu HTN DM Clients 13062026","tx_curr":1514,"bp_screened_p":0.9920739762219286,"raised_bp_p":0.19573901464713714,"htn_enrolled_p":0.5526315789473685,"htn_control_p":0.16666666666666666,"dm_enrolled_p":0.25,"dm_control_p":0.75},{"site":"Bomu Alwalidayn HTN DM 13022026","tx_curr":1261,"bp_screened_p":0.9801744647105471,"raised_bp_p":0.23948220064724918,"htn_enrolled_p":0.0,"htn_control_p":0.0,"dm_enrolled_p":0.0,"dm_control_p":0.0},{"site":"Bomu Timboni HTN DM Clients 13022026","tx_curr":826,"bp_screened_p":0.9806295399515739,"raised_bp_p":0.17777777777777778,"htn_enrolled_p":0.4782608695652174,"htn_control_p":0.0,"dm_enrolled_p":0.6666666666666666,"dm_control_p":0.25},{"site":"SJSH Shelter HTN DM 13022026","tx_curr":627,"bp_screened_p":0.9920255183413078,"raised_bp_p":0.26366559485530544,"htn_enrolled_p":0.0,"htn_control_p":0.0,"dm_enrolled_p":0.0,"dm_control_p":0.0},{"site":"SJSH Maungu HTN DM 13022026","tx_curr":328,"bp_screened_p":1.0,"raised_bp_p":0.1402439024390244,"htn_enrolled_p":0.0,"htn_control_p":0.0,"dm_enrolled_p":0.0,"dm_control_p":0.0},{"site":"SJSH Bura HTN DM 13022026","tx_curr":218,"bp_screened_p":0.9954128440366973,"raised_bp_p":0.21658986175115208,"htn_enrolled_p":0.0,"htn_control_p":0.0,"dm_enrolled_p":0.0,"dm_control_p":0.0}]};
+
+  // ---- Utilities ----
+  const fmtInt = (n) => new Intl.NumberFormat().format(n || 0);
+  const fmtPct = (p) => (p*100).toFixed(1) + '%';
+  const now = new Date();
+  document.getElementById('gen_at').textContent = now.toISOString().replace('T',' ').slice(0,19);
+
+  // ---- Built-in labels plugin ----
+  const ValueLabelPlugin = {
+    id: 'valueLabelPlugin',
+    afterDatasetsDraw(chart) {
+      const id = chart?.canvas?.id || '';
+      const ctx = chart.ctx;
+      if(!ctx) return;
+
+      ctx.save();
+      ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const type = chart.config.type;
+
+      // Pie/doughnut: N (pct) inside arcs
+      if(id === 'chart_bp_pie' && (type === 'doughnut' || type === 'pie')){
+        const data = (chart.data.datasets?.[0]?.data || []).map(v=>+v||0);
+        const total = data.reduce((a,b)=>a+b,0) || 1;
+        const meta = chart.getDatasetMeta(0);
+        meta.data.forEach((arc, i)=>{
+          const v = data[i] || 0;
+          if(v <= 0) return;
+          const pct = (v/total*100);
+          const p = arc.tooltipPosition();
+          ctx.fillText(`${fmtInt(v)} (${pct.toFixed(1)}%)`, p.x, p.y);
+        });
+        ctx.restore();
+        return;
+      }
+
+      // Bar charts (cascades and grouped sex): label on top if provided, else show value
+      if(type === 'bar' && (id === 'chart_htn' || id === 'chart_dm' || id === 'chart_bp_sex')){
+        chart.data.datasets.forEach((ds, di)=>{
+          const meta = chart.getDatasetMeta(di);
+          const labels = ds._datalabels || [];
+          meta.data.forEach((bar, i)=>{
+            const p = bar.tooltipPosition();
+            const txt = labels[i] || fmtInt((ds.data||[])[i]||0);
+            ctx.fillText(txt, p.x, p.y - 12);
+          });
+        });
+        ctx.restore();
+        return;
+      }
+
+      // Stacked bars: show segment value centered if segment is not tiny
+      if(type === 'bar' && id === 'chart_bp_age'){
+        chart.data.datasets.forEach((ds, di)=>{
+          const meta = chart.getDatasetMeta(di);
+          meta.data.forEach((bar, i)=>{
+            const v = (+ds.data[i] || 0);
+            if(v <= 0) return;
+            const {x, y, base} = bar;
+            const h = Math.abs(base - y);
+            if(h < 14) return;
+            ctx.fillText(fmtInt(v), x, y + h/2);
+          });
+        });
+        ctx.restore();
+        return;
+      }
+
+      ctx.restore();
+    }
+  };
+  if(window.Chart) Chart.register(ValueLabelPlugin);
+
+  // ---- State ----
+  let currentSite = 'All sites';
+  let currentMetrics = DATA.overall;
+
+  let htnChart = null;
+  let dmChart = null;
+  let bpPie = null;
+  let bpAge = null;
+  let bpSex = null;
+
+  // ---- Tabs ----
+  document.querySelectorAll('.tabbtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.tabbtn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = document.getElementById(btn.dataset.tab);
+      tab.classList.add('active');
+
+      if(btn.dataset.tab === 'tab_bp'){
+        renderBpProfile(currentMetrics, true);
+      }
+      [htnChart, dmChart, bpPie, bpAge, bpSex].forEach(ch => { try { if(ch) ch.resize(); } catch(e){} });
+    });
+  });
+
+  // ---- Site filter ----
+  const siteSelect = document.getElementById('siteSelect');
+  const sites = ['All sites', ...Object.keys(DATA.by_site || {}).sort()];
+  sites.forEach(s=>{
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s;
+    siteSelect.appendChild(opt);
+  });
+
+  siteSelect.addEventListener('change', ()=>{
+    currentSite = siteSelect.value;
+    currentMetrics = (currentSite === 'All sites') ? DATA.overall : (DATA.by_site[currentSite] || DATA.overall);
+    document.getElementById('scope_txt').textContent = currentSite;
+    renderOverview(currentMetrics);
+    renderCascades(currentMetrics);
+    if(document.getElementById('tab_bp').classList.contains('active')){
+      renderBpProfile(currentMetrics, false);
+    }
+  });
+
+  // ---- Render functions ----
+  function kpi(idValue, idNote, obj){
+    document.getElementById(idValue).textContent = fmtInt(obj.n);
+    if(idNote) document.getElementById(idNote).textContent = `${fmtPct(obj.p)} (${fmtInt(obj.n)}/${fmtInt(obj.d)})`;
+  }
+
+  function renderOverview(m){
+    document.getElementById('k_tx').textContent = fmtInt(m.tx_curr);
+    kpi('k_scr','k_scr_note',m.bp_screened);
+    kpi('k_rbp','k_rbp_note',m.raised_bp);
+    kpi('k_sda','k_sda_note',m.same_day_action);
+
+    const hEnr = m.htn_cascade.enrolled;
+    const hCtrl = m.htn_cascade.controlled;
+    document.getElementById('k_htn_enr').textContent = fmtInt(hEnr.n);
+    document.getElementById('k_htn_enr_note').textContent = `${fmtPct(hEnr.p)} (${fmtInt(hEnr.n)}/${fmtInt(hEnr.d)})`;
+    document.getElementById('k_htn_ctrl').textContent = fmtInt(hCtrl.n);
+    document.getElementById('k_htn_ctrl_note').textContent = `${fmtPct(hCtrl.p)} (${fmtInt(hCtrl.n)}/${fmtInt(hCtrl.d)})`;
+
+    const g1 = m.htn_gaps.raised_not_in_problem;
+    const g2 = m.htn_gaps.with_htn_not_enrolled;
+    document.getElementById('k_gap1').textContent = fmtInt(g1.n);
+    document.getElementById('k_gap1_note').textContent = `${fmtPct(g1.p)} (${fmtInt(g1.n)}/${fmtInt(g1.d)})`;
+    document.getElementById('k_gap2').textContent = fmtInt(g2.n);
+    document.getElementById('k_gap2_note').textContent = `${fmtPct(g2.p)} (${fmtInt(g2.n)}/${fmtInt(g2.d)})`;
+  }
+
+  function renderBar(canvasId, chartRef, labels, values, color, datalabels){
+    const el = document.getElementById(canvasId);
+    if(!window.Chart || !el) return chartRef;
+    if(!chartRef){
+      chartRef = new Chart(el, {
+        type:'bar',
+        data:{ labels, datasets:[{ label: 'Clients', data: values, backgroundColor: color, _datalabels: datalabels || [] }] },
+        options:{
+          responsive:true,
+          maintainAspectRatio:false,
+          scales:{ y:{ beginAtZero:true, title:{ display:true, text:'Clients (N)'} } },
+          plugins:{ legend:{ display:false } }
+        }
+      });
+    } else {
+      chartRef.data.labels = labels;
+      chartRef.data.datasets[0].data = values;
+      chartRef.data.datasets[0]._datalabels = datalabels || [];
+      chartRef.update();
+    }
+    return chartRef;
+  }
+
+  function renderCascades(m){
+    const h = m.htn_cascade;
+    const hLabels = ['Screened','Raised BP','With HTN','Enrolled','Controlled'];
+    const hVals = [h.screened.n, h.raised.n, h.with_htn.n, h.enrolled.n, h.controlled.n];
+    const hDL = [
+      `${fmtPct(h.screened.p)} (${fmtInt(h.screened.n)}/${fmtInt(h.screened.d)})`,
+      `${fmtPct(h.raised.p)} (${fmtInt(h.raised.n)}/${fmtInt(h.raised.d)})`,
+      `${fmtPct(h.with_htn.p)} (${fmtInt(h.with_htn.n)}/${fmtInt(h.with_htn.d)})`,
+      `${fmtPct(h.enrolled.p)} (${fmtInt(h.enrolled.n)}/${fmtInt(h.enrolled.d)})`,
+      `${fmtPct(h.controlled.p)} (${fmtInt(h.controlled.n)}/${fmtInt(h.controlled.d)})`
+    ];
+    htnChart = renderBar('chart_htn', htnChart, hLabels, hVals, 'rgba(29,78,216,.55)', hDL);
+
+    const d = m.dm_cascade;
+    const dLabels = ['With DM','Enrolled','Controlled'];
+    const dVals = [d.with_dm.n, d.enrolled.n, d.controlled.n];
+    const dDL = [
+      `${fmtPct(d.with_dm.p)} (${fmtInt(d.with_dm.n)}/${fmtInt(d.with_dm.d)})`,
+      `${fmtPct(d.enrolled.p)} (${fmtInt(d.enrolled.n)}/${fmtInt(d.enrolled.d)})`,
+      `${fmtPct(d.controlled.p)} (${fmtInt(d.controlled.n)}/${fmtInt(d.controlled.d)})`
+    ];
+    dmChart = renderBar('chart_dm', dmChart, dLabels, dVals, 'rgba(8,145,178,.55)', dDL);
+  }
+
+  function renderStackedAge(m, forceRecreate){
+    const el = document.getElementById('chart_bp_age');
+    if(!window.Chart || !el) return;
+
+    const labels = m.bp_by_age.labels || [];
+    const series = m.bp_by_age.series || {};
+    const colorMap = {
+      'Normal':'rgba(22,163,74,.55)',
+      'Pre-Hypertension':'rgba(245,158,11,.55)',
+      'Hypertension':'rgba(239,68,68,.55)',
+      'Severe Hypertension':'rgba(124,58,237,.55)'
+    };
+    const datasets = Object.keys(series).map(k => ({ label:k, data:series[k], backgroundColor: colorMap[k] || 'rgba(148,163,184,.55)' }));
+
+    if(forceRecreate && bpAge){ try{ bpAge.destroy(); }catch(e){} bpAge = null; }
+    if(!bpAge){
+      bpAge = new Chart(el, {
+        type:'bar',
+        data:{ labels, datasets },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          scales:{ x:{ stacked:true }, y:{ stacked:true, beginAtZero:true, title:{ display:true, text:'Clients (N)'} } },
+          plugins:{ legend:{ position:'bottom' } }
+        }
+      });
+    } else {
+      bpAge.data.labels = labels;
+      bpAge.data.datasets = datasets;
+      bpAge.update();
+    }
+  }
+
+  function renderBpPie(m, forceRecreate){
+    const el = document.getElementById('chart_bp_pie');
+    if(!window.Chart || !el) return;
+
+    if(el.clientWidth === 0 || el.clientHeight === 0){
+      requestAnimationFrame(()=>renderBpPie(m, forceRecreate));
+      return;
+    }
+    const totals = m.bp_counts_total || {};
+    const labels = Object.keys(totals);
+    const values = labels.map(k => +totals[k] || 0);
+
+    if(forceRecreate && bpPie){ try{ bpPie.destroy(); }catch(e){} bpPie = null; }
+    if(!bpPie){
+      bpPie = new Chart(el, {
+        type:'doughnut',
+        data:{ labels, datasets:[{ data: values }] },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{ position:'bottom' } }
+        }
+      });
+    } else {
+      bpPie.data.labels = labels;
+      bpPie.data.datasets[0].data = values;
+      bpPie.update();
+    }
+  }
+
+  function renderBpSexGrouped(m, forceRecreate){
+    const el = document.getElementById('chart_bp_sex');
+    if(!window.Chart || !el) return;
+
+    const sexLabels = m.bp_by_sex.labels || [];
+    const sexSeries = m.bp_by_sex.series || {};
+    const idxF = sexLabels.indexOf('F');
+    const idxM = sexLabels.indexOf('M');
+    const cats = Object.keys(sexSeries);
+
+    const female = cats.map(c => idxF>=0 ? (+((sexSeries[c]||[])[idxF]||0)) : 0);
+    const male   = cats.map(c => idxM>=0 ? (+((sexSeries[c]||[])[idxM]||0)) : 0);
+
+    // Build per-bar labels (just counts) to keep readable
+    const fLabels = female.map(v => fmtInt(v));
+    const mLabels = male.map(v => fmtInt(v));
+
+    const datasets = [
+      { label:'Female', data:female, backgroundColor:'rgba(29,78,216,.55)', _datalabels: fLabels },
+      { label:'Male', data:male, backgroundColor:'rgba(8,145,178,.55)', _datalabels: mLabels }
+    ];
+
+    if(forceRecreate && bpSex){ try{ bpSex.destroy(); }catch(e){} bpSex = null; }
+    if(!bpSex){
+      bpSex = new Chart(el, {
+        type:'bar',
+        data:{ labels: cats, datasets },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          scales:{ y:{ beginAtZero:true, title:{ display:true, text:'Clients (N)'} } },
+          plugins:{ legend:{ position:'bottom' } }
+        }
+      });
+    } else {
+      bpSex.data.labels = cats;
+      bpSex.data.datasets = datasets;
+      bpSex.update();
+    }
+  }
+
+  function renderBpByAgeTable(m){
+    const table = document.getElementById('tbl_bp_by_age');
+    if(!table) return;
+    const thead = table.querySelector('thead');
+    const tbody = table.querySelector('tbody');
+    thead.innerHTML = '';
+    tbody.innerHTML = '';
+
+    const labels = m.bp_by_age.labels || [];
+    const series = m.bp_by_age.series || {};
+    const cats = Object.keys(series);
+
+    const hr = document.createElement('tr');
+    ['Age band', ...cats, 'Total'].forEach(h=>{
+      const th = document.createElement('th'); th.textContent = h; hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+
+    labels.forEach((lab, i)=>{
+      const tr = document.createElement('tr');
+      const td0 = document.createElement('td'); td0.textContent = lab; tr.appendChild(td0);
+      let rowTotal = 0;
+      cats.forEach(c=>{
+        const v = +((series[c]||[])[i]||0);
+        rowTotal += v;
+        const td = document.createElement('td'); td.textContent = fmtInt(v); tr.appendChild(td);
+      });
+      const tdT = document.createElement('td'); tdT.textContent = fmtInt(rowTotal); tr.appendChild(tdT);
+      tbody.appendChild(tr);
+    });
+
+    const trF = document.createElement('tr');
+    const tdLab = document.createElement('td'); tdLab.textContent = 'Total'; trF.appendChild(tdLab);
+    let grand = 0;
+    cats.forEach(c=>{
+      const colTotal = (series[c]||[]).reduce((a,b)=>a+(+b||0),0);
+      grand += colTotal;
+      const td = document.createElement('td'); td.textContent = fmtInt(colTotal); trF.appendChild(td);
+    });
+    const tdG = document.createElement('td'); tdG.textContent = fmtInt(grand); trF.appendChild(tdG);
+    tbody.appendChild(trF);
+  }
+
+  function renderBpProfile(m, forceRecreate){
+    renderBpPie(m, forceRecreate);
+    renderStackedAge(m, forceRecreate);
+    renderBpSexGrouped(m, forceRecreate);
+    renderBpByAgeTable(m);
+  }
+
+  function renderLeagueTable(){
+    const tbody = document.querySelector('#tbl_league tbody');
+    tbody.innerHTML = '';
+    (DATA.league || []).forEach(r=>{
+      const tr = document.createElement('tr');
+      const cells = [
+        r.site,
+        fmtInt(r.tx_curr),
+        fmtPct(r.bp_screened_p),
+        fmtPct(r.raised_bp_p),
+        fmtPct(r.htn_enrolled_p),
+        fmtPct(r.htn_control_p),
+        fmtPct(r.dm_enrolled_p),
+        fmtPct(r.dm_control_p),
+      ];
+      cells.forEach(v=>{ const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ---- Initial render ----
+  renderOverview(currentMetrics);
+  renderCascades(currentMetrics);
+  renderLeagueTable();
+</script>
+</body>
+</html>
